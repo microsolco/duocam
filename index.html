@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>DuoCam</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DuoCam">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root{
+    --bg:#000; --fg:#fff; --dim:rgba(255,255,255,.62);
+    --glass:rgba(28,28,30,.58); --accent:#ffd60a; --rec:#ff453a;
+    --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);overflow:hidden;overscroll-behavior:none;
+    font:15px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+  canvas#view{position:fixed;inset:0;width:100%;height:100%;background:#000;display:block}
+  .hidden-video{position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none}
+  button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;touch-action:manipulation}
+
+  .top{position:fixed;left:0;right:0;top:0;padding:calc(var(--sat) + 10px) 14px 0;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+  .top>*{pointer-events:auto}
+  .round{width:44px;height:44px;border-radius:50%;background:var(--glass);display:grid;place-items:center;
+    -webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6)}
+  .round svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .pill{min-width:74px;height:32px;padding:0 14px;border-radius:16px;background:var(--glass);display:flex;align-items:center;justify-content:center;gap:8px;
+    font-variant-numeric:tabular-nums;font-weight:600;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  .pill .dot{width:9px;height:9px;border-radius:50%;background:var(--rec);animation:blink 1s steps(2,jump-none) infinite}
+  .pill.off{visibility:hidden}
+  @keyframes blink{50%{opacity:.2}}
+
+  .bottom{position:fixed;left:0;right:0;bottom:0;padding:0 0 calc(var(--sab) + 18px);display:flex;flex-direction:column;align-items:center;gap:16px}
+  .modes{display:flex;gap:6px;padding:6px;border-radius:22px;background:var(--glass);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+  .modes button{padding:9px 18px;border-radius:16px;font-weight:600;font-size:13px;letter-spacing:.04em;color:var(--dim)}
+  .modes button.on{background:rgba(255,255,255,.2);color:var(--accent)}
+  .shutter{width:76px;height:76px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center;transition:transform .12s}
+  .shutter:active{transform:scale(.93)}
+  .shutter i{width:60px;height:60px;border-radius:50%;background:#fff;transition:all .18s}
+  .shutter.video i{background:var(--rec)}
+  .shutter.rec i{width:30px;height:30px;border-radius:8px;background:var(--rec)}
+
+  .banner{position:fixed;left:14px;right:14px;top:calc(var(--sat) + 64px);padding:12px 14px;border-radius:14px;background:rgba(60,45,0,.82);border:1px solid rgba(255,214,10,.4);
+    font-size:13.5px;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);display:none}
+  .banner.show{display:block}
+
+  .pop{position:fixed;left:14px;top:calc(var(--sat) + 62px);width:236px;padding:14px;border-radius:20px;background:rgba(28,28,30,.86);
+    -webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);display:none}
+  .pop.show{display:block}
+  .pop h4{margin:0 0 8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+  .corners{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+  .corners button{aspect-ratio:9/12;border-radius:10px;border:1.5px solid rgba(255,255,255,.25);position:relative;background:rgba(255,255,255,.06)}
+  .corners button::after{content:"";position:absolute;width:34%;aspect-ratio:1;border-radius:50%;background:var(--dim)}
+  .corners button[data-c=tl]::after{left:8%;top:6%} .corners button[data-c=tr]::after{right:8%;top:6%}
+  .corners button[data-c=bl]::after{left:8%;bottom:6%} .corners button[data-c=br]::after{right:8%;bottom:6%}
+  .corners button.on{border-color:var(--accent)} .corners button.on::after{background:var(--accent)}
+  .seg{display:flex;gap:6px}
+  .seg button{flex:1;padding:8px 0;border-radius:10px;background:rgba(255,255,255,.08);font-weight:600}
+  .seg button.on{background:var(--accent);color:#000}
+
+  .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none}
+  .flash.go{animation:fl .28s ease-out}
+  @keyframes fl{from{opacity:.85}to{opacity:0}}
+
+  .overlay{position:fixed;inset:0;background:#000;display:none;flex-direction:column}
+  .overlay.show{display:flex}
+  #start{align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px;z-index:5}
+  #start h1{margin:0;font-size:30px;letter-spacing:-.02em}
+  #start p{margin:0;color:var(--dim);max-width:320px}
+  .cta{padding:14px 30px;border-radius:26px;background:var(--accent);color:#000;font-weight:700;font-size:17px;margin-top:8px}
+  #startErr{color:#ff9f0a;font-size:13.5px;max-width:320px}
+
+  #sheet{z-index:6}
+  #sheet .media{flex:1;min-height:0;display:grid;place-items:center;padding:calc(var(--sat) + 10px) 10px 10px}
+  #sheet .media img,#sheet .media video{max-width:100%;max-height:100%;border-radius:14px;background:#111}
+  #sheet .actions{display:flex;gap:12px;padding:8px 16px calc(var(--sab) + 18px)}
+  #sheet .actions button{flex:1;padding:15px 0;border-radius:16px;font-weight:700;font-size:16px;background:rgba(255,255,255,.14)}
+  #sheet .actions .primary{background:var(--accent);color:#000;flex:1.6}
+  #sheet .hint{text-align:center;font-size:12.5px;color:var(--dim);padding:0 20px 4px}
+
+  .toast{position:fixed;left:50%;bottom:calc(var(--sab) + 150px);transform:translateX(-50%);padding:10px 16px;border-radius:18px;background:rgba(40,40,42,.92);
+    font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:9;max-width:86%;text-align:center}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<video id="vRear" class="hidden-video" playsinline muted autoplay></video>
+<video id="vFront" class="hidden-video" playsinline muted autoplay></video>
+
+<div class="top">
+  <button class="round" id="btnSettings" aria-label="Posizione finestra">
+    <svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="3"/><circle cx="15" cy="16.5" r="2.2"/></svg>
+  </button>
+  <div class="pill off" id="timer"><span class="dot"></span><span id="timerTxt">00:00</span></div>
+  <button class="round" id="btnSwap" aria-label="Scambia fotocamere">
+    <svg viewBox="0 0 24 24"><path d="M7 4 3.5 7.5 7 11M3.5 7.5H15a4 4 0 0 1 4 4M17 20l3.5-3.5L17 13M20.5 16.5H9a4 4 0 0 1-4-4"/></svg>
+  </button>
+</div>
+
+<div class="pop" id="pop">
+  <h4>Angolo della finestra</h4>
+  <div class="corners" id="corners">
+    <button data-c="tl" aria-label="In alto a sinistra"></button>
+    <button data-c="tr" aria-label="In alto a destra"></button>
+    <button data-c="bl" aria-label="In basso a sinistra"></button>
+    <button data-c="br" aria-label="In basso a destra"></button>
+  </div>
+  <h4>Dimensione</h4>
+  <div class="seg" id="sizes">
+    <button data-s="s">S</button><button data-s="m">M</button><button data-s="l">L</button>
+  </div>
+</div>
+
+<div class="banner" id="banner"></div>
+
+<div class="bottom">
+  <div class="modes" id="modes">
+    <button data-m="photo" class="on">FOTO</button>
+    <button data-m="video">VIDEO</button>
+  </div>
+  <button class="shutter" id="shutter" aria-label="Scatta"><i></i></button>
+</div>
+
+<div class="flash" id="flash"></div>
+<div class="toast" id="toast"></div>
+
+<div class="overlay show" id="start">
+  <h1>DuoCam</h1>
+  <p>Fotocamera posteriore a tutto schermo e anteriore in un cerchio, in foto e video.</p>
+  <button class="cta" id="btnStart">Avvia fotocamere</button>
+  <div id="startErr"></div>
+</div>
+
+<div class="overlay" id="sheet">
+  <div class="media" id="sheetMedia"></div>
+  <div class="hint" id="sheetHint">Nel foglio di condivisione scegli “Salva immagine” o “Salva video”.</div>
+  <div class="actions">
+    <button id="btnDiscard">Chiudi</button>
+    <button class="primary" id="btnSave">Salva in Foto</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
