@@ -3,8 +3,7 @@
 
 const $ = s => document.querySelector(s);
 const cv = $('#view'), ctx = cv.getContext('2d');
-const vid = { rear: $('#vRear'), front: $('#vFront') };
-const SIZES = { s: 0.24, m: 0.32, l: 0.42 };
+const vid = { rear: $('#vRear') };
 
 const store = {
   get(k, d) { try { return localStorage.getItem('duocam.' + k) || d; } catch { return d; } },
@@ -13,16 +12,12 @@ const store = {
 
 const state = {
   mode: 'photo',
-  corner: store.get('corner', 'br'),
-  size: store.get('size', 'm'),
-  swap: store.get('swap', '0') === '1',   // true = anteriore a tutto schermo, posteriore nel cerchio
   started: false,
   recording: false,
-  streams: { rear: null, front: null },
+  streams: { rear: null },
   current: null                            // { file, url, kind }
 };
 
-const insets = { t: 0, b: 0 };
 let recorder = null, chunks = [], recStart = 0, timerId = 0, wakeLock = null;
 
 /* ---------- utilità UI ---------- */
@@ -31,21 +26,6 @@ function toast(msg, ms = 2400) {
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms);
 }
-function banner(msg) {
-  const b = $('#banner');
-  b.textContent = msg; b.classList.toggle('show', !!msg);
-}
-$('#banner').addEventListener('click', () => banner(''));
-
-function readInsets() {
-  const p = document.createElement('div');
-  p.style.cssText = 'position:fixed;left:0;top:0;visibility:hidden;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)';
-  document.body.appendChild(p);
-  const cs = getComputedStyle(p);
-  insets.t = parseFloat(cs.paddingTop) || 0;
-  insets.b = parseFloat(cs.paddingBottom) || 0;
-  p.remove();
-}
 
 const even = n => Math.round(n / 2) * 2;
 function sizeCanvas() {
@@ -53,20 +33,18 @@ function sizeCanvas() {
   const iw = innerWidth, ih = innerHeight, L = 1920;
   if (ih >= iw) { cv.height = L; cv.width = even(L * iw / ih); }
   else { cv.width = L; cv.height = even(L * ih / iw); }
-  readInsets();
 }
 addEventListener('resize', sizeCanvas);
 addEventListener('orientationchange', () => setTimeout(sizeCanvas, 250));
 
-/* ---------- fotocamere ---------- */
+/* ---------- fotocamera posteriore ---------- */
 const gum = c => navigator.mediaDevices.getUserMedia(c);
 
-async function openCam(facing, withAudio) {
-  const ideal = facing === 'user' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } };
+async function openCam(withAudio) {
   const tries = [
-    { video: { facingMode: { exact: facing }, ...ideal }, audio: withAudio },
-    { video: { facingMode: facing }, audio: withAudio },
-    { video: { facingMode: facing }, audio: false }
+    { video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: withAudio },
+    { video: { facingMode: 'environment' }, audio: withAudio },
+    { video: { facingMode: 'environment' }, audio: false }
   ];
   let last;
   for (const c of tries) {
@@ -78,9 +56,9 @@ async function openCam(facing, withAudio) {
 
 function stopStream(s) { s && s.getTracks().forEach(t => t.stop()); }
 function stopCameras() {
-  stopStream(state.streams.rear); stopStream(state.streams.front);
-  state.streams.rear = state.streams.front = null;
-  vid.rear.srcObject = vid.front.srcObject = null;
+  stopStream(state.streams.rear);
+  state.streams.rear = null;
+  vid.rear.srcObject = null;
 }
 
 async function attach(which, stream) {
@@ -89,96 +67,25 @@ async function attach(which, stream) {
   try { await vid[which].play(); } catch {}
 }
 
-// una camera è "viva" se la traccia è attiva e il video avanza davvero
-const liveTrack = s => !!s && s.getVideoTracks().some(t => t.readyState === 'live');
-async function framesAdvance(v) {
-  const t0 = v.currentTime;
-  await new Promise(r => setTimeout(r, 700));
-  return v.currentTime > t0 && v.videoWidth > 0;
-}
-const isAlive = w => liveTrack(state.streams[w]) && vid[w].videoWidth > 0 && !vid[w].paused;
-
 async function startCameras() {
   stopCameras();
-  banner('');
-  const rear = await openCam('environment', true);
-  await attach('rear', rear);
-
-  let front = null;
-  try {
-    front = await openCam('user', false);
-    await attach('front', front);
-  } catch (e) {
-    if (e.name === 'NotAllowedError') throw e;
-  }
-
-  const rearOk = await framesAdvance(vid.rear);
-  const frontOk = front ? await framesAdvance(vid.front) : false;
-
-  if (rearOk && frontOk) return;                 // doppia camera attiva
-
-  // Fallback: una sola camera
-  if (!front || !frontOk) {
-    stopStream(front); state.streams.front = null; vid.front.srcObject = null;
-    if (!rearOk) { stopStream(rear); await attach('rear', await openCam('environment', true)); }
-  } else if (!rearOk) {
-    // iOS ha fermato la posteriore quando è partita l'anteriore
-    stopStream(rear); state.streams.rear = null; vid.rear.srcObject = null;
-  }
-  banner('Il tuo dispositivo non consente di usare insieme le due fotocamere nel browser: sto usando una sola camera. Tocca per chiudere.');
+  await attach('rear', await openCam(true));
 }
 
 /* ---------- composizione su canvas ---------- */
-function drawCover(v, x, y, w, h, { mirror = false, circle = false, overlay = null } = {}) {
+function draw() {
+  const W = cv.width, H = cv.height, v = vid.rear;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   const vw = v.videoWidth, vh = v.videoHeight;
   if (!vw || !vh) return;
-  const s = Math.max(w / vw, h / vh), dw = vw * s, dh = vh * s;
-  ctx.save();
-  ctx.beginPath();
-  if (circle) ctx.arc(x + w / 2, y + h / 2, w / 2, 0, Math.PI * 2); else ctx.rect(x, y, w, h);
-  ctx.clip();
-  if (mirror) {
-    ctx.translate(x + w / 2, 0); ctx.scale(-1, 1);
-    ctx.drawImage(v, -dw / 2, y + (h - dh) / 2, dw, dh);
-    if (overlay) { ctx.translate(-dw / 2, y + (h - dh) / 2); ctx.scale(s, s); overlay(ctx); }
-  } else {
-    ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
-    if (overlay) { ctx.translate(x + (w - dw) / 2, y + (h - dh) / 2); ctx.scale(s, s); overlay(ctx); }
-  }
-  ctx.restore();
-}
 
-// il cappello/barba si applica solo alla fotocamera posteriore (coordinate del video posteriore)
-const overlayFor = cam => (cam === 'rear' && window.Santa && Santa.enabled && Santa.ready) ? Santa.draw : null;
+  // riempie lo schermo (cover)
+  const s = Math.max(W / vw, H / vh), dx = (W - vw * s) / 2, dy = (H - vh * s) / 2;
+  ctx.drawImage(v, dx, dy, vw * s, vh * s);
 
-function pipRect() {
-  const W = cv.width, H = cv.height, k = W / innerWidth;
-  const d = Math.round(Math.min(W, H) * SIZES[state.size]);
-  const mx = 16 * k, top = (insets.t + 64) * k, bot = (insets.b + 170) * k;
-  const left = state.corner[1] === 'l', up = state.corner[0] === 't';
-  return { x: left ? mx : W - mx - d, y: up ? top : H - bot - d, d, k };
-}
-
-function draw() {
-  const W = cv.width, H = cv.height;
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-
-  let main = state.swap ? 'front' : 'rear';
-  let pip = state.swap ? 'rear' : 'front';
-  if (!isAlive(pip)) pip = null;
-  if (!isAlive(main)) { main = pip; pip = null; }
-
-  if (main) drawCover(vid[main], 0, 0, W, H, { mirror: main === 'front', overlay: overlayFor(main) });
-  if (main && pip) {
-    const r = pipRect();
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 18 * r.k;
-    ctx.beginPath(); ctx.arc(r.x + r.d / 2, r.y + r.d / 2, r.d / 2, 0, Math.PI * 2);
-    ctx.fillStyle = '#000'; ctx.fill();
-    ctx.restore();
-    drawCover(vid[pip], r.x, r.y, r.d, r.d, { mirror: pip === 'front', circle: true, overlay: overlayFor(pip) });
-    ctx.beginPath(); ctx.arc(r.x + r.d / 2, r.y + r.d / 2, r.d / 2 - 2 * r.k, 0, Math.PI * 2);
-    ctx.lineWidth = 4 * r.k; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.stroke();
+  // cappello e barba da Babbo Natale (coordinate del video)
+  if (window.Santa && Santa.enabled && Santa.ready) {
+    ctx.save(); ctx.translate(dx, dy); ctx.scale(s, s); Santa.draw(ctx); ctx.restore();
   }
 }
 
@@ -209,8 +116,8 @@ function startRec() {
   const mime = pickMime();
   if (mime === null) return toast('Registrazione non supportata su questo dispositivo');
   const out = cv.captureStream(30);
-  const withAudio = [state.streams.rear, state.streams.front].find(s => s && s.getAudioTracks().length);
-  if (withAudio) withAudio.getAudioTracks().forEach(t => out.addTrack(t.clone()));
+  const src = state.streams.rear;
+  if (src) src.getAudioTracks().forEach(t => out.addTrack(t.clone()));
 
   chunks = [];
   try { recorder = new MediaRecorder(out, { ...(mime && { mimeType: mime }), videoBitsPerSecond: 8e6 }); }
@@ -289,25 +196,10 @@ async function saveCurrent() {
 
 /* ---------- controlli ---------- */
 function syncUI() {
-  document.querySelectorAll('#corners button').forEach(b => b.classList.toggle('on', b.dataset.c === state.corner));
-  document.querySelectorAll('#sizes button').forEach(b => b.classList.toggle('on', b.dataset.s === state.size));
   document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.m === state.mode));
   $('#shutter').classList.toggle('video', state.mode === 'video');
 }
 
-$('#corners').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  state.corner = b.dataset.c; store.set('corner', state.corner); syncUI();
-});
-$('#sizes').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  state.size = b.dataset.s; store.set('size', state.size); syncUI();
-});
-$('#btnSettings').addEventListener('click', () => $('#pop').classList.toggle('show'));
-cv.addEventListener('click', () => $('#pop').classList.remove('show'));
-$('#btnSwap').addEventListener('click', () => {
-  state.swap = !state.swap; store.set('swap', state.swap ? '1' : '0');
-});
 Santa.enabled = store.get('santa', '1') === '1';
 $('#btnSanta').classList.toggle('off', !Santa.enabled);
 $('#btnSanta').addEventListener('click', () => {
@@ -345,7 +237,7 @@ $('#btnStart').addEventListener('click', async () => {
   } catch (e) {
     err.textContent = e.name === 'NotAllowedError'
       ? 'Accesso negato. Abilita fotocamera e microfono in Impostazioni › Safari (o per l’app) e riprova.'
-      : 'Impossibile avviare le fotocamere: ' + (e.message || e.name);
+      : 'Impossibile avviare la fotocamera: ' + (e.message || e.name);
   }
 });
 
@@ -354,7 +246,7 @@ document.addEventListener('visibilitychange', async () => {
     if (state.recording) stopRec();
     stopCameras();
   } else if (state.started) {
-    try { await startCameras(); lockScreen(); } catch (e) { toast('Fotocamere non riavviate: ' + e.message); }
+    try { await startCameras(); lockScreen(); } catch (e) { toast('Fotocamera non riavviata: ' + e.message); }
   }
 });
 

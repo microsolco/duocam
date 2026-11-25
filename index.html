@@ -31,6 +31,7 @@
   .round{width:44px;height:44px;border-radius:50%;background:var(--glass);display:grid;place-items:center;
     -webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6)}
   .right{display:flex;gap:10px}
+  .spacer{background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
   #btnSanta{font-size:22px;line-height:1;transition:opacity .15s}
   .round.off{opacity:.4}
   .round svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -49,24 +50,6 @@
   .shutter i{width:60px;height:60px;border-radius:50%;background:#fff;transition:all .18s}
   .shutter.video i{background:var(--rec)}
   .shutter.rec i{width:30px;height:30px;border-radius:8px;background:var(--rec)}
-
-  .banner{position:fixed;left:14px;right:14px;top:calc(var(--sat) + 64px);padding:12px 14px;border-radius:14px;background:rgba(60,45,0,.82);border:1px solid rgba(255,214,10,.4);
-    font-size:13.5px;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);display:none}
-  .banner.show{display:block}
-
-  .pop{position:fixed;left:14px;top:calc(var(--sat) + 62px);width:236px;padding:14px;border-radius:20px;background:rgba(28,28,30,.86);
-    -webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);display:none}
-  .pop.show{display:block}
-  .pop h4{margin:0 0 8px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
-  .corners{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
-  .corners button{aspect-ratio:9/12;border-radius:10px;border:1.5px solid rgba(255,255,255,.25);position:relative;background:rgba(255,255,255,.06)}
-  .corners button::after{content:"";position:absolute;width:34%;aspect-ratio:1;border-radius:50%;background:var(--dim)}
-  .corners button[data-c=tl]::after{left:8%;top:6%} .corners button[data-c=tr]::after{right:8%;top:6%}
-  .corners button[data-c=bl]::after{left:8%;bottom:6%} .corners button[data-c=br]::after{right:8%;bottom:6%}
-  .corners button.on{border-color:var(--accent)} .corners button.on::after{background:var(--accent)}
-  .seg{display:flex;gap:6px}
-  .seg button{flex:1;padding:8px 0;border-radius:10px;background:rgba(255,255,255,.08);font-weight:600}
-  .seg button.on{background:var(--accent);color:#000}
 
   .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none}
   .flash.go{animation:fl .28s ease-out}
@@ -96,36 +79,14 @@
 <body>
 <canvas id="view"></canvas>
 <video id="vRear" class="hidden-video" playsinline muted autoplay></video>
-<video id="vFront" class="hidden-video" playsinline muted autoplay></video>
 
 <div class="top">
-  <button class="round" id="btnSettings" aria-label="Posizione finestra">
-    <svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="3"/><circle cx="15" cy="16.5" r="2.2"/></svg>
-  </button>
+  <div class="round spacer" aria-hidden="true"></div>
   <div class="pill off" id="timer"><span class="dot"></span><span id="timerTxt">00:00</span></div>
   <div class="right">
     <button class="round" id="btnSanta" aria-label="Cappello e barba da Babbo Natale">🎅</button>
-    <button class="round" id="btnSwap" aria-label="Scambia fotocamere">
-      <svg viewBox="0 0 24 24"><path d="M7 4 3.5 7.5 7 11M3.5 7.5H15a4 4 0 0 1 4 4M17 20l3.5-3.5L17 13M20.5 16.5H9a4 4 0 0 1-4-4"/></svg>
-    </button>
   </div>
 </div>
-
-<div class="pop" id="pop">
-  <h4>Angolo della finestra</h4>
-  <div class="corners" id="corners">
-    <button data-c="tl" aria-label="In alto a sinistra"></button>
-    <button data-c="tr" aria-label="In alto a destra"></button>
-    <button data-c="bl" aria-label="In basso a sinistra"></button>
-    <button data-c="br" aria-label="In basso a destra"></button>
-  </div>
-  <h4>Dimensione</h4>
-  <div class="seg" id="sizes">
-    <button data-s="s">S</button><button data-s="m">M</button><button data-s="l">L</button>
-  </div>
-</div>
-
-<div class="banner" id="banner"></div>
 
 <div class="bottom">
   <div class="modes" id="modes">
@@ -140,8 +101,8 @@
 
 <div class="overlay show" id="start">
   <h1>DuoCam</h1>
-  <p>Fotocamera posteriore a tutto schermo e anteriore in un cerchio, in foto e video.</p>
-  <button class="cta" id="btnStart">Avvia fotocamere</button>
+  <p>Fotocamera posteriore a tutto schermo, in foto e video, con cappello e barba da Babbo Natale sui visi.</p>
+  <button class="cta" id="btnStart">Avvia fotocamera</button>
   <div id="startErr"></div>
 </div>
 
