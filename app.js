@@ -12,6 +12,7 @@ const store = {
 
 const state = {
   mode: 'photo',
+  facing: store.get('facing', 'environment') === 'user' ? 'user' : 'environment',
   started: false,
   recording: false,
   streams: { rear: null },
@@ -40,11 +41,11 @@ addEventListener('orientationchange', () => setTimeout(sizeCanvas, 250));
 /* ---------- fotocamera posteriore ---------- */
 const gum = c => navigator.mediaDevices.getUserMedia(c);
 
-async function openCam(withAudio) {
+async function openCam(facing, withAudio) {
   const tries = [
-    { video: { facingMode: { exact: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: withAudio },
-    { video: { facingMode: 'environment' }, audio: withAudio },
-    { video: { facingMode: 'environment' }, audio: false }
+    { video: { facingMode: { exact: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: withAudio },
+    { video: { facingMode: facing }, audio: withAudio },
+    { video: { facingMode: facing }, audio: false }
   ];
   let last;
   for (const c of tries) {
@@ -69,7 +70,7 @@ async function attach(which, stream) {
 
 async function startCameras() {
   stopCameras();
-  await attach('rear', await openCam(true));
+  await attach('rear', await openCam(state.facing, true));
 }
 
 /* ---------- composizione su canvas ---------- */
@@ -81,11 +82,29 @@ function draw() {
 
   // riempie lo schermo (cover)
   const s = Math.max(W / vw, H / vh), dx = (W - vw * s) / 2, dy = (H - vh * s) / 2;
+  ctx.save();
+  if (state.facing === 'user') { ctx.translate(W, 0); ctx.scale(-1, 1); }   // effetto specchio per la frontale
   ctx.drawImage(v, dx, dy, vw * s, vh * s);
 
   // cappello e barba da Babbo Natale (coordinate del video)
   if (window.Santa && Santa.enabled && Santa.ready) {
-    ctx.save(); ctx.translate(dx, dy); ctx.scale(s, s); Santa.draw(ctx); ctx.restore();
+    ctx.translate(dx, dy); ctx.scale(s, s); Santa.draw(ctx);
+  }
+  ctx.restore();
+}
+
+async function flipCamera() {
+  if (state.recording) return toast('Ferma la registrazione prima di cambiare camera');
+  const prev = state.facing;
+  state.facing = prev === 'user' ? 'environment' : 'user';
+  try {
+    await startCameras();
+    store.set('facing', state.facing);
+    Santa.reset();
+  } catch (e) {
+    state.facing = prev;
+    toast('Camera non disponibile: ' + (e.message || e.name));
+    try { await startCameras(); } catch {}
   }
 }
 
@@ -200,6 +219,7 @@ function syncUI() {
   $('#shutter').classList.toggle('video', state.mode === 'video');
 }
 
+$('#btnFlip').addEventListener('click', flipCamera);
 Santa.enabled = store.get('santa', '1') === '1';
 $('#btnSanta').classList.toggle('off', !Santa.enabled);
 $('#btnSanta').addEventListener('click', () => {

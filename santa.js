@@ -136,6 +136,8 @@ function drawHat(ctx) {
   ctx.fillStyle = '#fff'; ctx.fillRect(-1.34, -0.9, 2.68, 0.3);
 }
 
+Santa.reset = () => { tracks.length = 0; };
+
 Santa.draw = ctx => {
   const now = performance.now();
   for (const t of tracks) {
