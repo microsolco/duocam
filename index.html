@@ -37,6 +37,7 @@
     display:none;flex-direction:column;gap:2px;z-index:4}
   .pop.show{display:flex}
   .pop button{text-align:left;padding:12px 14px;border-radius:12px;font-weight:500}
+  .pop .note{padding:10px 14px 6px;font-size:13px;line-height:1.4;color:var(--dim)}
   .pop button.on{background:rgba(255,255,255,.14);color:var(--accent)}
   .spacer{background:none;-webkit-backdrop-filter:none;backdrop-filter:none}
   #btnSanta{font-size:22px;line-height:1;transition:opacity .15s}
@@ -92,7 +93,7 @@
     <button class="round" id="btnFlip" aria-label="Cambia fotocamera (frontale/posteriore)" hidden>
       <svg viewBox="0 0 24 24"><path d="M7 4 3.5 7.5 7 11M3.5 7.5H15a4 4 0 0 1 4 4M17 20l3.5-3.5L17 13M20.5 16.5H9a4 4 0 0 1-4-4"/></svg>
     </button>
-    <button class="round" id="btnCams" aria-label="Scegli la fotocamera" hidden>
+    <button class="round" id="btnCams" aria-label="Scegli la fotocamera">
       <svg viewBox="0 0 24 24"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2.2l1.1-1.8h6.4L16.3 7h2.2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>
     </button>
   </div>

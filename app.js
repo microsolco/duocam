@@ -91,7 +91,6 @@ async function refreshCameras() {
   try {
     state.cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
   } catch { state.cams = []; }
-  $('#btnCams').hidden = state.cams.length < 2;
   $('#btnFlip').hidden = !(navigator.maxTouchPoints > 0 && state.cams.length >= 2);
   const box = $('#camList'); box.textContent = '';
   state.cams.forEach((d, i) => {
@@ -101,6 +100,12 @@ async function refreshCameras() {
     if (d.deviceId && d.deviceId === state.activeId) b.classList.add('on');
     box.appendChild(b);
   });
+  if (state.cams.length < 2) {
+    const n = document.createElement('div');
+    n.className = 'note';
+    n.textContent = 'Nessun’altra fotocamera collegata. Collega una webcam o attiva l’iPhone come webcam.';
+    box.appendChild(n);
+  }
 }
 
 /* ---------- composizione su canvas ---------- */
