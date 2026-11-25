@@ -28,6 +28,9 @@
   .top>*{pointer-events:auto}
   .round{width:44px;height:44px;border-radius:50%;background:var(--glass);display:grid;place-items:center;
     -webkit-backdrop-filter:blur(20px) saturate(1.6);backdrop-filter:blur(20px) saturate(1.6)}
+  .right{display:flex;gap:10px}
+  #btnSanta{font-size:22px;line-height:1;transition:opacity .15s}
+  .round.off{opacity:.4}
   .round svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   .pill{min-width:74px;height:32px;padding:0 14px;border-radius:16px;background:var(--glass);display:flex;align-items:center;justify-content:center;gap:8px;
     font-variant-numeric:tabular-nums;font-weight:600;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
@@ -98,9 +101,12 @@
     <svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="14" height="19" rx="3"/><circle cx="15" cy="16.5" r="2.2"/></svg>
   </button>
   <div class="pill off" id="timer"><span class="dot"></span><span id="timerTxt">00:00</span></div>
-  <button class="round" id="btnSwap" aria-label="Scambia fotocamere">
-    <svg viewBox="0 0 24 24"><path d="M7 4 3.5 7.5 7 11M3.5 7.5H15a4 4 0 0 1 4 4M17 20l3.5-3.5L17 13M20.5 16.5H9a4 4 0 0 1-4-4"/></svg>
-  </button>
+  <div class="right">
+    <button class="round" id="btnSanta" aria-label="Cappello e barba da Babbo Natale">🎅</button>
+    <button class="round" id="btnSwap" aria-label="Scambia fotocamere">
+      <svg viewBox="0 0 24 24"><path d="M7 4 3.5 7.5 7 11M3.5 7.5H15a4 4 0 0 1 4 4M17 20l3.5-3.5L17 13M20.5 16.5H9a4 4 0 0 1-4-4"/></svg>
+    </button>
+  </div>
 </div>
 
 <div class="pop" id="pop">
@@ -146,6 +152,7 @@
   </div>
 </div>
 
+<script src="santa.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -129,7 +129,7 @@ async function startCameras() {
 }
 
 /* ---------- composizione su canvas ---------- */
-function drawCover(v, x, y, w, h, { mirror = false, circle = false } = {}) {
+function drawCover(v, x, y, w, h, { mirror = false, circle = false, overlay = null } = {}) {
   const vw = v.videoWidth, vh = v.videoHeight;
   if (!vw || !vh) return;
   const s = Math.max(w / vw, h / vh), dw = vw * s, dh = vh * s;
@@ -140,11 +140,16 @@ function drawCover(v, x, y, w, h, { mirror = false, circle = false } = {}) {
   if (mirror) {
     ctx.translate(x + w / 2, 0); ctx.scale(-1, 1);
     ctx.drawImage(v, -dw / 2, y + (h - dh) / 2, dw, dh);
+    if (overlay) { ctx.translate(-dw / 2, y + (h - dh) / 2); ctx.scale(s, s); overlay(ctx); }
   } else {
     ctx.drawImage(v, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    if (overlay) { ctx.translate(x + (w - dw) / 2, y + (h - dh) / 2); ctx.scale(s, s); overlay(ctx); }
   }
   ctx.restore();
 }
+
+// il cappello/barba si applica solo alla fotocamera posteriore (coordinate del video posteriore)
+const overlayFor = cam => (cam === 'rear' && window.Santa && Santa.enabled && Santa.ready) ? Santa.draw : null;
 
 function pipRect() {
   const W = cv.width, H = cv.height, k = W / innerWidth;
@@ -163,7 +168,7 @@ function draw() {
   if (!isAlive(pip)) pip = null;
   if (!isAlive(main)) { main = pip; pip = null; }
 
-  if (main) drawCover(vid[main], 0, 0, W, H, { mirror: main === 'front' });
+  if (main) drawCover(vid[main], 0, 0, W, H, { mirror: main === 'front', overlay: overlayFor(main) });
   if (main && pip) {
     const r = pipRect();
     ctx.save();
@@ -171,7 +176,7 @@ function draw() {
     ctx.beginPath(); ctx.arc(r.x + r.d / 2, r.y + r.d / 2, r.d / 2, 0, Math.PI * 2);
     ctx.fillStyle = '#000'; ctx.fill();
     ctx.restore();
-    drawCover(vid[pip], r.x, r.y, r.d, r.d, { mirror: pip === 'front', circle: true });
+    drawCover(vid[pip], r.x, r.y, r.d, r.d, { mirror: pip === 'front', circle: true, overlay: overlayFor(pip) });
     ctx.beginPath(); ctx.arc(r.x + r.d / 2, r.y + r.d / 2, r.d / 2 - 2 * r.k, 0, Math.PI * 2);
     ctx.lineWidth = 4 * r.k; ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.stroke();
   }
@@ -303,6 +308,13 @@ cv.addEventListener('click', () => $('#pop').classList.remove('show'));
 $('#btnSwap').addEventListener('click', () => {
   state.swap = !state.swap; store.set('swap', state.swap ? '1' : '0');
 });
+Santa.enabled = store.get('santa', '1') === '1';
+$('#btnSanta').classList.toggle('off', !Santa.enabled);
+$('#btnSanta').addEventListener('click', () => {
+  Santa.enabled = !Santa.enabled; store.set('santa', Santa.enabled ? '1' : '0');
+  $('#btnSanta').classList.toggle('off', !Santa.enabled);
+  toast(Santa.enabled ? '🎅 Babbo Natale attivo' : 'Babbo Natale disattivato');
+});
 $('#modes').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || state.recording) return;
   state.mode = b.dataset.m; syncUI();
@@ -329,6 +341,7 @@ $('#btnStart').addEventListener('click', async () => {
     state.started = true;
     $('#start').classList.remove('show');
     lockScreen();
+    Santa.init(vid.rear, msg => toast(msg, 3000));
   } catch (e) {
     err.textContent = e.name === 'NotAllowedError'
       ? 'Accesso negato. Abilita fotocamera e microfono in Impostazioni › Safari (o per l’app) e riprova.'
