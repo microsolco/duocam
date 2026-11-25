@@ -1,4 +1,4 @@
-const CACHE = 'duocam-v4';
+const CACHE = 'duocam-v5';
 const ASSETS = [
   './', './index.html', './app.js', './santa.js', './manifest.webmanifest', './icon-180.png', './icon-512.png',
   './vendor/vision_bundle.mjs', './vendor/blaze_face_short_range.tflite',
