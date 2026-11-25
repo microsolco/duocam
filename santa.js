@@ -151,6 +151,5 @@ Santa.draw = ctx => {
   }
 };
 
-Santa._tracks = tracks;
 window.Santa = Santa;
 })();

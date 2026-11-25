@@ -1,4 +1,4 @@
-const CACHE = 'duocam-v2';
+const CACHE = 'duocam-v3';
 const ASSETS = [
   './', './index.html', './app.js', './santa.js', './manifest.webmanifest', './icon-180.png', './icon-512.png',
   './vendor/vision_bundle.mjs', './vendor/blaze_face_short_range.tflite',
@@ -15,9 +15,10 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== self.location.origin) return;   // mai toccare richieste di terzi
   e.respondWith(
     fetch(e.request).then(r => {
-      if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
+      if (r.ok && r.type === 'basic') { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
       return r;
     }).catch(() => caches.match(e.request))
   );
