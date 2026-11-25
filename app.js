@@ -13,6 +13,8 @@ const store = {
 const state = {
   mode: 'photo',
   facing: store.get('facing', 'environment') === 'user' ? 'user' : 'environment',
+  deviceId: store.get('deviceId', ''),     // camera scelta a mano dall'elenco (vuota = automatica)
+  activeId: '', mirror: false, cams: [],
   started: false,
   recording: false,
   streams: { rear: null },
@@ -42,11 +44,17 @@ addEventListener('orientationchange', () => setTimeout(sizeCanvas, 250));
 const gum = c => navigator.mediaDevices.getUserMedia(c);
 
 async function openCam(facing, withAudio) {
-  const tries = [
-    { video: { facingMode: { exact: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: withAudio },
+  const base = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  const tries = [];
+  if (state.deviceId) {
+    tries.push({ video: { deviceId: { exact: state.deviceId }, ...base }, audio: withAudio },
+               { video: { deviceId: { exact: state.deviceId } }, audio: false });
+  }
+  tries.push(
+    { video: { facingMode: { exact: facing }, ...base }, audio: withAudio },
     { video: { facingMode: facing }, audio: withAudio },
     { video: { facingMode: facing }, audio: false }
-  ];
+  );
   let last;
   for (const c of tries) {
     try { return await gum(c); }
@@ -70,7 +78,29 @@ async function attach(which, stream) {
 
 async function startCameras() {
   stopCameras();
-  await attach('rear', await openCam(state.facing, true));
+  const stream = await openCam(state.facing, true);
+  await attach('rear', stream);
+  const track = stream.getVideoTracks()[0], st = (track && track.getSettings && track.getSettings()) || {};
+  state.activeId = st.deviceId || '';
+  // specchio per le camere frontali/webcam, non per le posteriori
+  state.mirror = st.facingMode ? st.facingMode === 'user' : !/back|rear|post|environment/i.test((track && track.label) || '');
+  refreshCameras();
+}
+
+async function refreshCameras() {
+  try {
+    state.cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  } catch { state.cams = []; }
+  $('#btnCams').hidden = state.cams.length < 2;
+  $('#btnFlip').hidden = !(navigator.maxTouchPoints > 0 && state.cams.length >= 2);
+  const box = $('#camList'); box.textContent = '';
+  state.cams.forEach((d, i) => {
+    const b = document.createElement('button');
+    b.textContent = d.label || `Camera ${i + 1}`;
+    b.dataset.id = d.deviceId;
+    if (d.deviceId && d.deviceId === state.activeId) b.classList.add('on');
+    box.appendChild(b);
+  });
 }
 
 /* ---------- composizione su canvas ---------- */
@@ -83,7 +113,7 @@ function draw() {
   // riempie lo schermo (cover)
   const s = Math.max(W / vw, H / vh), dx = (W - vw * s) / 2, dy = (H - vh * s) / 2;
   ctx.save();
-  if (state.facing === 'user') { ctx.translate(W, 0); ctx.scale(-1, 1); }   // effetto specchio per la frontale
+  if (state.mirror) { ctx.translate(W, 0); ctx.scale(-1, 1); }   // effetto specchio per frontale/webcam
   ctx.drawImage(v, dx, dy, vw * s, vh * s);
 
   // cappello e barba da Babbo Natale (coordinate del video)
@@ -95,14 +125,15 @@ function draw() {
 
 async function flipCamera() {
   if (state.recording) return toast('Ferma la registrazione prima di cambiare camera');
-  const prev = state.facing;
+  const prev = state.facing, prevId = state.deviceId;
   state.facing = prev === 'user' ? 'environment' : 'user';
+  state.deviceId = '';                       // il pulsante torna alla scelta automatica
   try {
     await startCameras();
-    store.set('facing', state.facing);
+    store.set('facing', state.facing); store.set('deviceId', '');
     Santa.reset();
   } catch (e) {
-    state.facing = prev;
+    state.facing = prev; state.deviceId = prevId;
     toast('Camera non disponibile: ' + (e.message || e.name));
     try { await startCameras(); } catch {}
   }
@@ -220,6 +251,26 @@ function syncUI() {
 }
 
 $('#btnFlip').addEventListener('click', flipCamera);
+$('#btnCams').addEventListener('click', () => $('#camList').classList.toggle('show'));
+cv.addEventListener('click', () => $('#camList').classList.remove('show'));
+$('#camList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  $('#camList').classList.remove('show');
+  if (state.recording) return toast('Ferma la registrazione prima di cambiare camera');
+  if (b.dataset.id === state.activeId) return;
+  const prev = state.deviceId;
+  state.deviceId = b.dataset.id;
+  try {
+    await startCameras();
+    store.set('deviceId', state.deviceId);
+    Santa.reset();
+  } catch (err) {
+    state.deviceId = prev;
+    toast('Camera non disponibile: ' + (err.message || err.name));
+    try { await startCameras(); } catch {}
+  }
+});
+navigator.mediaDevices?.addEventListener?.('devicechange', refreshCameras);
 Santa.enabled = store.get('santa', '1') === '1';
 $('#btnSanta').classList.toggle('off', !Santa.enabled);
 $('#btnSanta').addEventListener('click', () => {
